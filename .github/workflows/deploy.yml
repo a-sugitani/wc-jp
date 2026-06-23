@@ -1,0 +1,46 @@
+name: Build & deploy to GitHub Pages
+
+on:
+  # Follow BBC data: rebuild every 30 minutes.
+  schedule:
+    - cron: "*/30 * * * *"
+  # Rebuild on push to main.
+  push:
+    branches: [main]
+  # Allow manual runs from the Actions tab.
+  workflow_dispatch:
+
+# Only one deploy at a time; let a newer run cancel an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Generate index.html (JST)
+        run: node build.js
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
