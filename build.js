@@ -174,12 +174,28 @@ function teamScore(t) {
   if (t.fulltimeScore != null) return String(t.fulltimeScore);
   return null;
 }
+// Teams whose match isn't decided yet carry a placeholder (W-32-2, E1, ...).
+// Render those as readable Japanese instead of the raw code.
+function prettyTeam(t) {
+  if (t.urn) return t.name.fullName; // resolved real team
+  const ph = t.knockoutGroupPlaceholder || t.name.fullName || "";
+  let m;
+  if ((m = /^W-32-(\d+)$/.exec(ph))) return `32強 第${m[1]} 勝者`;
+  if ((m = /^W-16-(\d+)$/.exec(ph))) return `16強 第${m[1]} 勝者`;
+  if ((m = /^W-QF(\d+)$/.exec(ph))) return `準々 第${m[1]} 勝者`;
+  if ((m = /^W-SF(\d+)$/.exec(ph))) return `準決 第${m[1]} 勝者`;
+  if ((m = /^L-SF(\d+)$/.exec(ph))) return `準決 第${m[1]} 敗者`;
+  if ((m = /^([A-Z])([12])$/.exec(ph))) return `${m[1]}組 ${m[2]}位`;
+  if (/^[A-Z]{2,}3$/.test(ph)) return `3位 (${ph.slice(0, -1)}組)`;
+  return ph;
+}
 function teamRow(t, win, played) {
   const sc = teamScore(t);
   const flag = flagFor(t);
-  return `<div class="trow${win ? " win" : ""}">` +
+  const undecided = !t.urn;
+  return `<div class="trow${win ? " win" : ""}${undecided ? " tbd" : ""}">` +
     `<span class="flag">${flag}</span>` +
-    `<span class="tname">${esc(t.name.fullName)}</span>` +
+    `<span class="tname">${esc(prettyTeam(t))}</span>` +
     `<span class="tsc">${played && sc != null ? esc(sc) : ""}</span></div>`;
 }
 function renderCard(m) {
@@ -288,6 +304,7 @@ function buildHtml(ks, builtAtIso) {
     display:flex;gap:6px;align-items:center}
   .trow{display:flex;align-items:center;gap:6px;font-size:.86rem;font-weight:600;padding:1px 0}
   .trow.win{color:var(--win)}
+  .trow.tbd{color:var(--muted);font-weight:500;font-style:italic}
   .flag{flex:0 0 auto;font-size:1.05rem;width:1.4em;text-align:center}
   .tname{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tsc{flex:0 0 auto;font-variant-numeric:tabular-nums;font-weight:800}
