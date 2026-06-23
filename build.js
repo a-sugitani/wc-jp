@@ -50,62 +50,28 @@ function findWorldCupStore(data) {
   throw new Error("knockoutStage not found in page data");
 }
 
-// --- flags (emoji) ---------------------------------------------------------
-// Map BBC team-urn slug -> ISO 3166-1 alpha-2 (for a regional-indicator emoji).
-const ISO2 = {
-  argentina: "AR", australia: "AU", austria: "AT", belgium: "BE",
-  brazil: "BR", canada: "CA", "cape-verde": "CV", colombia: "CO",
-  "czech-republic": "CZ", "dr-congo": "CD", egypt: "EG", france: "FR",
-  germany: "DE", ghana: "GH", iran: "IR", "ivory-coast": "CI", japan: "JP",
-  jordan: "JO", mexico: "MX", morocco: "MA", netherlands: "NL", norway: "NO",
-  paraguay: "PY", portugal: "PT", "south-korea": "KR", spain: "ES",
-  sweden: "SE", switzerland: "CH", uruguay: "UY", usa: "US",
-  // Other plausible 2026 qualifiers (kept so flags appear if standings shift):
-  senegal: "SN", tunisia: "TN", algeria: "DZ", nigeria: "NG", cameroon: "CM",
-  mali: "ML", "south-africa": "ZA", "saudi-arabia": "SA", qatar: "QA",
-  uae: "AE", iraq: "IQ", uzbekistan: "UZ", china: "CN", india: "IN",
-  indonesia: "ID", "new-zealand": "NZ", ecuador: "EC", peru: "PE",
-  chile: "CL", venezuela: "VE", bolivia: "BO", panama: "PA",
-  "costa-rica": "CR", honduras: "HN", jamaica: "JM", croatia: "HR",
-  italy: "IT", poland: "PL", denmark: "DK", serbia: "RS", turkey: "TR",
-  ukraine: "UA", greece: "GR", hungary: "HU", romania: "RO", slovenia: "SI",
-  slovakia: "SK", ireland: "IE", "north-macedonia": "MK", albania: "AL",
-  "bosnia-and-herzegovina": "BA", georgia: "GE", finland: "FI", israel: "IL",
-  curacao: "CW", haiti: "HT", "el-salvador": "SV", guatemala: "GT",
-  suriname: "SR", "trinidad-and-tobago": "TT", angola: "AO", gabon: "GA",
-  benin: "BJ", "equatorial-guinea": "GQ", madagascar: "MG",
-  mozambique: "MZ", namibia: "NA", zambia: "ZM", uganda: "UG",
-  "burkina-faso": "BF", guinea: "GN", comoros: "KM", togo: "TG",
-  kenya: "KE", tanzania: "TZ", sudan: "SD", libya: "LY", mauritania: "MR",
-  bahrain: "BH", oman: "OM", kuwait: "KW", palestine: "PS", lebanon: "LB",
-  syria: "SY", thailand: "TH", vietnam: "VN", malaysia: "MY",
-  philippines: "PH", tajikistan: "TJ", kyrgyzstan: "KG", turkmenistan: "TM",
-  "north-korea": "KP",
-};
-// UK home nations need subdivision (tag-sequence) flag emoji.
-function subdivisionFlag(region) {
-  return (
-    "\u{1F3F4}" +
-    [...region].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join("") +
-    "\u{E007F}"
-  );
+// --- flags (BBC flag SVGs) -------------------------------------------------
+// The BBC page embeds hashed SVG URLs for every country, e.g.
+//   .../country-flags/germany.5d291e75a0.svg
+// We parse them straight from the page so the hashes stay current, then link
+// each team to its flag image (renders consistently across platforms, unlike
+// regional-indicator emoji which fall back to "DE"/"FR" on Windows).
+const FLAG_BASE =
+  "https://static.files.bbci.co.uk/core/website/assets/static/sport/country-flags/";
+let FLAGS = {}; // slug -> absolute URL
+
+function parseFlagMap(html) {
+  const map = {};
+  const re = /country-flags\/([a-z-]+)\.[a-f0-9]+\.svg/g;
+  let m;
+  while ((m = re.exec(html))) map[m[1]] = FLAG_BASE + m[0].split("country-flags/")[1];
+  return map;
 }
-const SPECIAL_FLAG = {
-  england: subdivisionFlag("gbeng"),
-  scotland: subdivisionFlag("gbsct"),
-  wales: subdivisionFlag("gbwls"),
-};
-function iso2ToEmoji(code) {
-  return [...code]
-    .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
-    .join("");
-}
-function flagFor(team) {
-  if (!team.urn) return "";
-  const slug = team.urn.split(":").pop();
-  if (SPECIAL_FLAG[slug]) return SPECIAL_FLAG[slug];
-  const iso = ISO2[slug];
-  return iso ? iso2ToEmoji(iso) : "";
+function flagHtml(team) {
+  const url = team.urn ? FLAGS[team.urn.split(":").pop()] : null;
+  if (!url) return `<span class="flag flag-ph"></span>`;
+  const code = esc((team.name.code || "").slice(0, 3));
+  return `<img class="flag" src="${esc(url)}" alt="${code}" loading="lazy" width="22" height="15">`;
 }
 
 // --- date formatting (JST) -------------------------------------------------
@@ -191,10 +157,9 @@ function prettyTeam(t) {
 }
 function teamRow(t, win, played) {
   const sc = teamScore(t);
-  const flag = flagFor(t);
   const undecided = !t.urn;
   return `<div class="trow${win ? " win" : ""}${undecided ? " tbd" : ""}">` +
-    `<span class="flag">${flag}</span>` +
+    flagHtml(t) +
     `<span class="tname">${esc(prettyTeam(t))}</span>` +
     `<span class="tsc">${played && sc != null ? esc(sc) : ""}</span></div>`;
 }
@@ -305,7 +270,9 @@ function buildHtml(ks, builtAtIso) {
   .trow{display:flex;align-items:center;gap:6px;font-size:.86rem;font-weight:600;padding:1px 0}
   .trow.win{color:var(--win)}
   .trow.tbd{color:var(--muted);font-weight:500;font-style:italic}
-  .flag{flex:0 0 auto;font-size:1.05rem;width:1.4em;text-align:center}
+  .flag{flex:0 0 auto;width:22px;height:15px;object-fit:contain;border-radius:2px;
+    box-shadow:0 0 0 1px #0006}
+  .flag-ph{box-shadow:none}
   .tname{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tsc{flex:0 0 auto;font-variant-numeric:tabular-nums;font-weight:800}
   .badge{border-radius:4px;padding:0 5px;font-weight:700;font-size:.66rem}
@@ -381,6 +348,7 @@ ${renderList(ks)}
 async function main() {
   const builtAtIso = new Date().toISOString();
   const html = await fetchHtml(SOURCE_URL);
+  FLAGS = parseFlagMap(html);
   const data = extractInitialData(html);
   const wc = findWorldCupStore(data);
   const out = buildHtml(wc.knockoutStage, builtAtIso);
