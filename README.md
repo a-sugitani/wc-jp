@@ -25,21 +25,27 @@ node build.js                 # public/index.html を生成
 npx serve public              # もしくは: python3 -m http.server -d public 8000
 ```
 
-## デプロイ手順（GitHub Pages）
+## デプロイ手順（Cloudflare Pages）
 
-```bash
-git init && git add -A && git commit -m "init"
-git branch -M main
-gh repo create <name> --public --source=. --push   # gh CLI を使う場合
-# もしくは GitHub でリポジトリを作成し、リモート追加して push
-```
+GitHub Actions でビルドし、**Cloudflare Pages** へデプロイします。公開URLは
+`https://<プロジェクト名>.pages.dev` となり、GitHub ユーザー名は出ません。
 
-その後、リポジトリの **Settings → Pages → Build and deployment → Source** を
-**「GitHub Actions」** に設定します。以降、push と30分ごとの cron で自動更新されます。
+1. **プロジェクト作成（一度だけ）** — ローカルで:
+   ```bash
+   npx wrangler login                 # 既存の Cloudflare アカウントでログイン
+   npx wrangler pages project create wc-knockout-jst --production-branch=main
+   npx wrangler whoami                # Account ID を控える
+   ```
+2. **API トークン発行** — Cloudflare ダッシュボード → My Profile → API Tokens →
+   Create Token → 権限 **Account · Cloudflare Pages · Edit** を付与。
+3. **GitHub Secrets 登録** — リポジトリ Settings → Secrets and variables → Actions:
+   - `CLOUDFLARE_API_TOKEN` … 手順2のトークン
+   - `CLOUDFLARE_ACCOUNT_ID` … 手順1の Account ID
+4. push すると Actions がビルド＆デプロイ。以降 push と30分ごとの cron で自動更新。
 
-公開URL: `https://<ユーザー名>.github.io/<リポジトリ名>/`
-
-> 不要になったらリポジトリを削除すれば公開も停止します（＝一時的なURL）。
+> プロジェクト名は `.github/workflows/deploy.yml` の `CF_PAGES_PROJECT` で変更可。
+> 不要になったら Pages プロジェクトを削除すれば公開停止（＝一時的なURL）。
+> リポジトリは private のままでも CI から問題なくデプロイできます。
 
 ## カスタマイズ
 
